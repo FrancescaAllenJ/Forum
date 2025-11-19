@@ -2,11 +2,14 @@ package main
 
 import (
 	"fmt"
+	"forum/database"
 	"html/template"
 	"net/http"
 )
 
 func main() {
+	database.InitDB()
+
 	http.HandleFunc("/", homeHandler)
 
 	// Serve static files like CSS
