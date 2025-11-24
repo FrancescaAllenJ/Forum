@@ -7,38 +7,45 @@ import (
 
 	"forum/database"
 	auth "forum/handlers"
+	posts "forum/handlers/posts"
 )
 
 var templates *template.Template
 
-// HomeData is the data passed to index.html
+// HomeData holds the data sent to index.html
 type HomeData struct {
-	User *auth.SessionUser
+	User  *auth.SessionUser
+	Posts []Post
+}
+
+// Post structure used for displaying posts on the homepage
+type Post struct {
+	ID        int
+	UserID    int
+	Title     string
+	Content   string
+	CreatedAt string
 }
 
 func main() {
 	// 1. Initialize the database
 	database.InitDB()
 
-	// 2. Preload ALL templates
+	// 2. Load all templates
 	loadTemplates()
 
-	// 3. Setup routing
+	// 3. Routing
 	mux := http.NewServeMux()
 
-	// Home
 	mux.HandleFunc("/", homeHandler)
-
-	// Registration route
 	mux.HandleFunc("/register", auth.RegisterHandler)
-
-	// Login route
 	mux.HandleFunc("/login", auth.LoginHandler)
-
-	// Logout route
 	mux.HandleFunc("/logout", auth.LogoutHandler)
 
-	// Serve static files
+	// NEW — Create Post Route
+	mux.HandleFunc("/create-post", posts.CreatePostHandler)
+
+	// Static files
 	static := http.FileServer(http.Dir("static"))
 	mux.Handle("/static/", http.StripPrefix("/static/", static))
 
@@ -59,22 +66,35 @@ func loadTemplates() {
 }
 
 func homeHandler(w http.ResponseWriter, r *http.Request) {
-	// Try to get logged-in user
-	user, err := auth.GetUserFromRequest(r)
+	user, _ := auth.GetUserFromRequest(r)
+
+	// Load posts from DB
+	rows, err := database.DB.Query(`
+		SELECT id, user_id, title, content, created_at
+		FROM posts
+		ORDER BY created_at DESC
+	`)
 	if err != nil {
-		log.Println("Error getting user from session:", err)
-		http.Error(w, "Server error", http.StatusInternalServerError)
+		http.Error(w, "Error loading posts", http.StatusInternalServerError)
 		return
+	}
+	defer rows.Close()
+
+	var posts []Post
+	for rows.Next() {
+		var p Post
+		rows.Scan(&p.ID, &p.UserID, &p.Title, &p.Content, &p.CreatedAt)
+		posts = append(posts, p)
 	}
 
 	data := HomeData{
-		User: user,
+		User:  user,
+		Posts: posts,
 	}
 
 	err = templates.ExecuteTemplate(w, "index.html", data)
 	if err != nil {
 		http.Error(w, "Template error", http.StatusInternalServerError)
-		return
 	}
 }
 
