@@ -7,5 +7,15 @@
 <body>
     <h1>Welcome to the Forum</h1>
     <p>This is your homepage. Real templates are now working.</p>
+
+    {{if .User}}
+        <p>You are logged in as <strong>{{.User.Username}}</strong>.</p>
+        <p><a href="/logout">Logout</a></p>
+    {{else}}
+        <p>
+            <a href="/login">Login</a> |
+            <a href="/register">Register</a>
+        </p>
+    {{end}}
 </body>
 </html>

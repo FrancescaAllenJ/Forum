@@ -6,9 +6,15 @@ import (
 	"net/http"
 
 	"forum/database"
+	auth "forum/handlers"
 )
 
 var templates *template.Template
+
+// HomeData is the data passed to index.html
+type HomeData struct {
+	User *auth.SessionUser
+}
 
 func main() {
 	// 1. Initialize the database
@@ -20,12 +26,23 @@ func main() {
 	// 3. Setup routing
 	mux := http.NewServeMux()
 
+	// Home
 	mux.HandleFunc("/", homeHandler)
+
+	// Registration route
+	mux.HandleFunc("/register", auth.RegisterHandler)
+
+	// Login route
+	mux.HandleFunc("/login", auth.LoginHandler)
+
+	// Logout route
+	mux.HandleFunc("/logout", auth.LogoutHandler)
 
 	// Serve static files
 	static := http.FileServer(http.Dir("static"))
 	mux.Handle("/static/", http.StripPrefix("/static/", static))
 
+	// Start server
 	log.Println("Server running at http://localhost:8080")
 	err := http.ListenAndServe(":8080", mux)
 	if err != nil {
@@ -42,7 +59,19 @@ func loadTemplates() {
 }
 
 func homeHandler(w http.ResponseWriter, r *http.Request) {
-	err := templates.ExecuteTemplate(w, "index.html", nil)
+	// Try to get logged-in user
+	user, err := auth.GetUserFromRequest(r)
+	if err != nil {
+		log.Println("Error getting user from session:", err)
+		http.Error(w, "Server error", http.StatusInternalServerError)
+		return
+	}
+
+	data := HomeData{
+		User: user,
+	}
+
+	err = templates.ExecuteTemplate(w, "index.html", data)
 	if err != nil {
 		http.Error(w, "Template error", http.StatusInternalServerError)
 		return

@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Register</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <h1>Create an Account</h1>
+
+    {{if .}}
+        <p style="color:red;">{{.}}</p>
+    {{end}}
+
+    <form action="/register" method="POST">
+        <label>Email:</label><br>
+        <input type="email" name="email" required><br><br>
+
+        <label>Username:</label><br>
+        <input type="text" name="username" required><br><br>
+
+        <label>Password:</label><br>
+        <input type="password" name="password" required><br><br>
+
+        <button type="submit">Register</button>
+    </form>
+</body>
+</html>
