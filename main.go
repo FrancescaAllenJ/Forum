@@ -1,32 +1,52 @@
 package main
 
 import (
-	"fmt"
-	"forum/database"
 	"html/template"
+	"log"
 	"net/http"
+
+	"forum/database"
 )
 
+var templates *template.Template
+
 func main() {
+	// 1. Initialize the database
 	database.InitDB()
 
-	http.HandleFunc("/", homeHandler)
+	// 2. Preload ALL templates
+	loadTemplates()
 
-	// Serve static files like CSS
-	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
+	// 3. Setup routing
+	mux := http.NewServeMux()
 
-	fmt.Println("Server running on http://localhost:8080")
-	http.ListenAndServe(":8080", nil)
+	mux.HandleFunc("/", homeHandler)
+
+	// Serve static files
+	static := http.FileServer(http.Dir("static"))
+	mux.Handle("/static/", http.StripPrefix("/static/", static))
+
+	log.Println("Server running at http://localhost:8080")
+	err := http.ListenAndServe(":8080", mux)
+	if err != nil {
+		log.Fatalf("Server failed: %v", err)
+	}
+}
+
+func loadTemplates() {
+	var err error
+	templates, err = template.ParseGlob("templates/*.html")
+	if err != nil {
+		log.Fatalf("Error parsing templates: %v", err)
+	}
 }
 
 func homeHandler(w http.ResponseWriter, r *http.Request) {
-	tmpl, err := template.ParseFiles("templates/index.html")
+	err := templates.ExecuteTemplate(w, "index.html", nil)
 	if err != nil {
 		http.Error(w, "Template error", http.StatusInternalServerError)
 		return
 	}
-
-	tmpl.Execute(w, nil)
 }
 
 // WHAT A WEB SERVER ACTUALLY IS

@@ -2,7 +2,7 @@ package database
 
 import (
 	"database/sql"
-	"fmt"
+	"log"
 	"os"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -13,25 +13,32 @@ var DB *sql.DB
 func InitDB() {
 	var err error
 
-	// Open or create the SQLite database file
+	// Open SQLite database file
 	DB, err = sql.Open("sqlite3", "./forum.db")
 	if err != nil {
-		fmt.Println("Error opening database:", err)
-		os.Exit(1)
+		log.Fatalf("Error opening database: %v", err)
 	}
 
-	// Run the schema.sql to build tables
+	// Ensure SQLite behaves correctly (only one connection allowed)
+	DB.SetMaxOpenConns(1)
+
+	// Force SQLite to honour foreign key constraints
+	_, err = DB.Exec("PRAGMA foreign_keys = ON")
+	if err != nil {
+		log.Fatalf("Failed to enable foreign keys: %v", err)
+	}
+
+	// Load schema file
 	schema, err := os.ReadFile("database/schema.sql")
 	if err != nil {
-		fmt.Println("Error reading schema file:", err)
-		os.Exit(1)
+		log.Fatalf("Error reading schema file: %v", err)
 	}
 
+	// Execute schema (create tables)
 	_, err = DB.Exec(string(schema))
 	if err != nil {
-		fmt.Println("Error executing schema:", err)
-		os.Exit(1)
+		log.Fatalf("Error executing schema: %v", err)
 	}
 
-	fmt.Println("Database initialised successfully.")
+	log.Println("📦 Database initialised successfully.")
 }
