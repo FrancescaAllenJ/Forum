@@ -9,6 +9,23 @@
 <p>{{.Post.Content}}</p>
 <small>Posted by {{.Post.Username}} on {{.Post.CreatedAt}}</small>
 
+<!-- LIKE / DISLIKE FOR POST -->
+<div style="margin-top:10px;">
+    <form action="/like" method="POST" style="display:inline;">
+        <input type="hidden" name="type" value="post">
+        <input type="hidden" name="id" value="{{.Post.ID}}">
+        <input type="hidden" name="value" value="1">
+        <button type="submit">👍 Like</button>
+    </form>
+
+    <form action="/like" method="POST" style="display:inline;margin-left:8px;">
+        <input type="hidden" name="type" value="post">
+        <input type="hidden" name="id" value="{{.Post.ID}}">
+        <input type="hidden" name="value" value="-1">
+        <button type="submit">👎 Dislike</button>
+    </form>
+</div>
+
 <hr>
 
 <h2>Comments</h2>
@@ -18,6 +35,24 @@
         <div style="margin-bottom: 15px;">
             <p>{{.Content}}</p>
             <small>By {{.Username}} at {{.CreatedAt}}</small>
+
+            <!-- LIKE / DISLIKE for COMMENT -->
+            <div>
+                <form action="/like" method="POST" style="display:inline;">
+                    <input type="hidden" name="type" value="comment">
+                    <input type="hidden" name="id" value="{{.ID}}">
+                    <input type="hidden" name="value" value="1">
+                    <button type="submit">👍</button>
+                </form>
+
+                <form action="/like" method="POST" style="display:inline;margin-left:8px;">
+                    <input type="hidden" name="type" value="comment">
+                    <input type="hidden" name="id" value="{{.ID}}">
+                    <input type="hidden" name="value" value="-1">
+                    <button type="submit">👎</button>
+                </form>
+            </div>
+
         </div>
     {{end}}
 {{else}}

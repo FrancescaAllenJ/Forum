@@ -21,9 +21,47 @@
     {{if .Posts}}
         {{range .Posts}}
             <div style="margin-bottom: 20px;">
-                <h3>{{.Title}}</h3>
+
+                <!-- POST TITLE (clickable link) -->
+                <h3>
+                    <a href="/post?id={{.ID}}">{{.Title}}</a>
+                </h3>
+
                 <p>{{.Content}}</p>
-                <small>Posted by user {{.UserID}} on {{.CreatedAt}}</small>
+
+                <!-- USERNAME -->
+                <small>
+                    Posted by <strong>{{.Username}}</strong> on {{.CreatedAt}}
+                </small>
+
+                <!-- CATEGORIES -->
+                {{if .Categories}}
+                    <p>
+                        Categories:
+                        {{range .Categories}}
+                            <a href="/category?id={{.ID}}"
+                               style="background:#eee;padding:4px;border-radius:4px;margin-right:5px;">
+                                {{.Name}}
+                            </a>
+                        {{end}}
+                    </p>
+                {{end}}
+
+                <!-- LIKE / DISLIKE BUTTONS -->
+                <form action="/like" method="POST" style="display:inline;">
+                    <input type="hidden" name="type" value="post">
+                    <input type="hidden" name="id" value="{{.ID}}">
+                    <input type="hidden" name="value" value="1">
+                    <button type="submit">👍 Like</button>
+                </form>
+
+                <form action="/like" method="POST" style="display:inline;margin-left:8px;">
+                    <input type="hidden" name="type" value="post">
+                    <input type="hidden" name="id" value="{{.ID}}">
+                    <input type="hidden" name="value" value="-1">
+                    <button type="submit">👎 Dislike</button>
+                </form>
+
             </div>
         {{end}}
     {{else}}

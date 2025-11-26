@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Category: {{.Category.Name}}</title>
+</head>
+<body>
+
+<h1>Category: {{.Category.Name}}</h1>
+
+{{if .User}}
+<p>Logged in as <strong>{{.User.Username}}</strong></p>
+{{end}}
+
+<hr>
+
+<h2>Posts in this category</h2>
+
+{{if .Posts}}
+    {{range .Posts}}
+        <div style="margin-bottom: 20px;">
+            <h3>
+                <a href="/post?id={{.ID}}">{{.Title}}</a>
+            </h3>
+
+            <p>{{.Content}}</p>
+
+            <small>Posted by <strong>{{.Username}}</strong> on {{.CreatedAt}}</small>
+
+            <p>
+                Categories:
+                {{range .Categories}}
+                    <a href="/category?id={{.ID}}" 
+                       style="background:#eee;padding:4px;border-radius:4px;margin-right:5px;">
+                        {{.Name}}
+                    </a>
+                {{end}}
+            </p>
+        </div>
+    {{end}}
+{{else}}
+    <p>No posts in this category yet.</p>
+{{end}}
+
+</body>
+</html>

@@ -12,11 +12,30 @@
     {{end}}
 
     <form action="/create-post" method="POST">
+
+        <!-- TITLE -->
         <label>Title:</label><br>
         <input type="text" name="title" required><br><br>
 
+        <!-- CONTENT -->
         <label>Content:</label><br>
         <textarea name="content" rows="6" cols="40" required></textarea><br><br>
+
+        <!-- CATEGORIES (NEW!) -->
+        <label>Categories:</label><br>
+
+        {{if .Categories}}
+            {{range .Categories}}
+                <label>
+                    <input type="checkbox" name="category_ids" value="{{.ID}}">
+                    {{.Name}}
+                </label><br>
+            {{end}}
+        {{else}}
+            <p>No categories available.</p>
+        {{end}}
+
+        <br>
 
         <button type="submit">Create Post</button>
     </form>
