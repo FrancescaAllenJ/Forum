@@ -30,7 +30,7 @@
 <h3>Leave a comment</h3>
 <form action="/create-comment" method="POST">
     <input type="hidden" name="post_id" value="{{.Post.ID}}">
-    <textarea name="content" rows="4" cols="50" placeholder="Write a comment..."></textarea><br>
+    <textarea name="content" rows="4" cols="50" placeholder="Write a comment..." required></textarea><br>
     <button type="submit">Submit Comment</button>
 </form>
 {{else}}
