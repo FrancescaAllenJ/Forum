@@ -7,8 +7,10 @@ import (
 
 	"forum/database"
 	auth "forum/handlers"
+	categories "forum/handlers/categories"
 	comments "forum/handlers/comments"
 	posts "forum/handlers/posts"
+	"forum/models"
 )
 
 // templates will hold all parsed HTML files.
@@ -18,26 +20,17 @@ var templates *template.Template
 // It contains the logged-in user (if any) and a list of posts.
 type HomeData struct {
 	User  *auth.SessionUser
-	Posts []Post
-}
-
-// Post represents a single forum post on the homepage.
-type Post struct {
-	ID        int
-	UserID    int
-	Title     string
-	Content   string
-	CreatedAt string
+	Posts []models.Post
 }
 
 func main() {
-	// 1. Initialize database and create all tables.
+	// 1. Initialize the database (creates all tables).
 	database.InitDB()
 
-	// 2. Load all HTML templates at startup.
+	// 2. Load HTML templates.
 	loadTemplates()
 
-	// 3. Create a custom HTTP router.
+	// 3. Create router.
 	mux := http.NewServeMux()
 
 	// --------------------------
@@ -54,22 +47,23 @@ func main() {
 
 	// Post routes
 	mux.HandleFunc("/create-post", posts.CreatePostHandler)
-	mux.HandleFunc("/post", posts.ViewPostHandler) // NEW: single post page
+	mux.HandleFunc("/post", posts.ViewPostHandler)
 
 	// Comment routes
-	mux.HandleFunc("/create-comment", comments.CreateCommentHandler) // NEW
+	mux.HandleFunc("/create-comment", comments.CreateCommentHandler)
+
+	// Category filter route
+	mux.HandleFunc("/category", categories.ViewCategoryHandler)
 
 	// --------------------------
 	// STATIC FILES
 	// --------------------------
-
 	static := http.FileServer(http.Dir("static"))
 	mux.Handle("/static/", http.StripPrefix("/static/", static))
 
 	// --------------------------
 	// START SERVER
 	// --------------------------
-
 	log.Println("Server running at http://localhost:8080")
 	if err := http.ListenAndServe(":8080", mux); err != nil {
 		log.Fatalf("Server failed: %v", err)
@@ -85,16 +79,17 @@ func loadTemplates() {
 	}
 }
 
-// homeHandler handles GET "/" and displays the homepage with posts.
+// homeHandler displays the homepage with posts + categories.
 func homeHandler(w http.ResponseWriter, r *http.Request) {
-	// 1. Get logged-in user (may be nil if not logged in)
+	// Get logged-in user (nil if not logged in)
 	user, _ := auth.GetUserFromRequest(r)
 
-	// 2. Query all posts
+	// Query posts with usernames
 	rows, err := database.DB.Query(`
-		SELECT id, user_id, title, content, created_at
+		SELECT posts.id, posts.user_id, users.username, posts.title, posts.content, posts.created_at
 		FROM posts
-		ORDER BY created_at DESC
+		JOIN users ON posts.user_id = users.id
+		ORDER BY posts.created_at DESC
 	`)
 	if err != nil {
 		http.Error(w, "Error loading posts", http.StatusInternalServerError)
@@ -102,25 +97,33 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer rows.Close()
 
-	var posts []Post
+	var postsList []models.Post
 
-	// 3. Loop over each row returned from the database
+	// Loop through results
 	for rows.Next() {
-		var p Post
-		if err := rows.Scan(&p.ID, &p.UserID, &p.Title, &p.Content, &p.CreatedAt); err != nil {
+		var p models.Post
+		err := rows.Scan(&p.ID, &p.UserID, &p.Username, &p.Title, &p.Content, &p.CreatedAt)
+		if err != nil {
 			http.Error(w, "Error reading posts", http.StatusInternalServerError)
 			return
 		}
-		posts = append(posts, p)
+
+		// Get categories per post
+		cats, err := posts.GetCategoriesForPost(p.ID)
+		if err == nil {
+			p.Categories = cats
+		}
+
+		postsList = append(postsList, p)
 	}
 
-	// 4. Build data structure to send to index.html
+	// Build data for template
 	data := HomeData{
 		User:  user,
-		Posts: posts,
+		Posts: postsList,
 	}
 
-	// 5. Render the homepage template
+	// Render homepage
 	if err := templates.ExecuteTemplate(w, "index.html", data); err != nil {
 		http.Error(w, "Template error", http.StatusInternalServerError)
 	}
