@@ -47,6 +47,11 @@
                     </p>
                 {{end}}
 
+                <!-- LIKE / DISLIKE COUNTS -->
+                <p>
+                    👍 {{.Likes}} | 👎 {{.Dislikes}}
+                </p>
+
                 <!-- LIKE / DISLIKE BUTTONS -->
                 <form action="/like" method="POST" style="display:inline;">
                     <input type="hidden" name="type" value="post">

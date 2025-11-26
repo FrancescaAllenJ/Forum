@@ -11,6 +11,8 @@
 
 <!-- LIKE / DISLIKE FOR POST -->
 <div style="margin-top:10px;">
+    <p>👍 {{.Post.Likes}} | 👎 {{.Post.Dislikes}}</p>
+
     <form action="/like" method="POST" style="display:inline;">
         <input type="hidden" name="type" value="post">
         <input type="hidden" name="id" value="{{.Post.ID}}">
@@ -37,6 +39,8 @@
             <small>By {{.Username}} at {{.CreatedAt}}</small>
 
             <!-- LIKE / DISLIKE for COMMENT -->
+            <p>👍 {{.Likes}} | 👎 {{.Dislikes}}</p>
+
             <div>
                 <form action="/like" method="POST" style="display:inline;">
                     <input type="hidden" name="type" value="comment">

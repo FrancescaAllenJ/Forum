@@ -10,6 +10,8 @@ type Post struct {
 	Title      string
 	Content    string
 	CreatedAt  string
+	Likes      int
+	Dislikes   int
 	Categories []posts.Category // categories linked to the post
 }
 
@@ -24,5 +26,4 @@ type Comment struct {
 }
 
 // Category is a lightweight passthrough of the posts.Category struct.
-// We embed it so templates can use either type without conflict.
 type Category = posts.Category

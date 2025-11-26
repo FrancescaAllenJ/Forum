@@ -1,15 +1,12 @@
 package posts
 
 import (
-	"html/template"
 	"log"
 	"net/http"
 
 	"forum/database"
 	auth "forum/handlers"
 )
-
-var postTmpl = template.Must(template.ParseGlob("templates/*.html"))
 
 // For passing category list to the template
 type Category struct {
@@ -31,12 +28,11 @@ func CreatePostHandler(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 
-	// ---------------------------------------------------------
-	// GET METHOD — show the create post form with categories
-	// ---------------------------------------------------------
+	// -------------------------
+	// GET — Show form
+	// -------------------------
 	case "GET":
 
-		// Load all categories for selection
 		rows, err := database.DB.Query(`SELECT id, name FROM categories`)
 		if err != nil {
 			http.Error(w, "Error loading categories", http.StatusInternalServerError)
@@ -51,22 +47,19 @@ func CreatePostHandler(w http.ResponseWriter, r *http.Request) {
 			cats = append(cats, c)
 		}
 
-		// Pass categories to template
 		data := map[string]interface{}{
 			"Categories": cats,
 		}
 
 		postTmpl.ExecuteTemplate(w, "create_post.html", data)
 
-	// ---------------------------------------------------------
-	// POST METHOD — create a post and save its categories
-	// ---------------------------------------------------------
+	// -------------------------
+	// POST — Create post
+	// -------------------------
 	case "POST":
 
 		title := r.FormValue("title")
 		content := r.FormValue("content")
-
-		// Read multiple category IDs (checkboxes)
 		categoryIDs := r.Form["category_ids"]
 
 		if title == "" || content == "" {
@@ -75,7 +68,6 @@ func CreatePostHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Insert new post
 		result, err := database.DB.Exec(`
 			INSERT INTO posts (user_id, title, content)
 			VALUES (?, ?, ?)
@@ -87,10 +79,8 @@ func CreatePostHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Get ID of new post
 		postID, _ := result.LastInsertId()
 
-		// Insert post-category relationships
 		for _, catID := range categoryIDs {
 			_, err := database.DB.Exec(`
 				INSERT INTO post_categories (post_id, category_id)

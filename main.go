@@ -9,6 +9,7 @@ import (
 	auth "forum/handlers"
 	categories "forum/handlers/categories"
 	comments "forum/handlers/comments"
+	likes "forum/handlers/likes"
 	posts "forum/handlers/posts"
 	"forum/models"
 )
@@ -55,6 +56,9 @@ func main() {
 	// Category filter route
 	mux.HandleFunc("/category", categories.ViewCategoryHandler)
 
+	// Likes / Dislikes
+	mux.HandleFunc("/like", likes.LikeHandler)
+
 	// --------------------------
 	// STATIC FILES
 	// --------------------------
@@ -79,7 +83,7 @@ func loadTemplates() {
 	}
 }
 
-// homeHandler displays the homepage with posts + categories.
+// homeHandler displays the homepage with posts + categories + like counts.
 func homeHandler(w http.ResponseWriter, r *http.Request) {
 	// Get logged-in user (nil if not logged in)
 	user, _ := auth.GetUserFromRequest(r)
@@ -113,6 +117,11 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 		if err == nil {
 			p.Categories = cats
 		}
+
+		// Get like/dislike counts for this post
+		likesCount, dislikesCount := likes.CountPostLikes(p.ID)
+		p.Likes = likesCount
+		p.Dislikes = dislikesCount
 
 		postsList = append(postsList, p)
 	}
