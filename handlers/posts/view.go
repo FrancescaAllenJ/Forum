@@ -27,7 +27,7 @@ type SinglePost struct {
 	Username   string
 	Likes      int
 	Dislikes   int
-	Categories []Category // <-- ✅ ADDED
+	Categories []Category
 }
 
 type CommentView struct {
@@ -39,9 +39,13 @@ type CommentView struct {
 	Dislikes  int
 }
 
+// ViewPostHandler shows a single post with comments, categories, and likes.
 func ViewPostHandler(w http.ResponseWriter, r *http.Request) {
 	user, _ := auth.GetUserFromRequest(r)
 
+	// ---------------------------------------------------------
+	// 1. Read post ID
+	// ---------------------------------------------------------
 	idStr := r.URL.Query().Get("id")
 	if idStr == "" {
 		http.Error(w, "Missing post ID", http.StatusBadRequest)
@@ -53,9 +57,16 @@ func ViewPostHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// ---------------------------------------------------------
+	// 2. Load the post (use strftime for safe Go string scan)
+	// ---------------------------------------------------------
 	var post SinglePost
 	err = database.DB.QueryRow(`
-		SELECT posts.id, posts.title, posts.content, posts.created_at, users.username
+		SELECT posts.id,
+		       posts.title,
+		       posts.content,
+		       strftime('%Y-%m-%d %H:%M:%S', posts.created_at) AS created_at,
+		       users.username
 		FROM posts
 		JOIN users ON posts.user_id = users.id
 		WHERE posts.id = ?
@@ -66,20 +77,27 @@ func ViewPostHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// --------------------------------------------
-	// ✅ NEW — Load categories for this post
-	// --------------------------------------------
+	// ---------------------------------------------------------
+	// 3. Load categories for this post
+	// ---------------------------------------------------------
 	cats, _ := GetCategoriesForPost(postID)
 	post.Categories = cats
 
-	// Load likes/dislikes for the post
+	// ---------------------------------------------------------
+	// 4. Load likes/dislikes for this post
+	// ---------------------------------------------------------
 	postLikes, postDislikes := likes.CountPostLikes(postID)
 	post.Likes = postLikes
 	post.Dislikes = postDislikes
 
-	// Load comments
+	// ---------------------------------------------------------
+	// 5. Load comments (BUFFER FIRST to avoid SQLite deadlock)
+	// ---------------------------------------------------------
 	rows, err := database.DB.Query(`
-		SELECT comments.id, comments.content, comments.created_at, users.username
+		SELECT comments.id,
+		       comments.content,
+		       strftime('%Y-%m-%d %H:%M:%S', comments.created_at) AS created_at,
+		       users.username
 		FROM comments
 		JOIN users ON comments.user_id = users.id
 		WHERE comments.post_id = ?
@@ -90,17 +108,41 @@ func ViewPostHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error loading comments", http.StatusInternalServerError)
 		return
 	}
-	defer rows.Close()
 
-	var comments []CommentView
+	// Temporary buffer structure
+	type rawComment struct {
+		ID        int
+		Content   string
+		CreatedAt string
+		Username  string
+	}
+
+	var rawComments []rawComment
+
 	for rows.Next() {
-		var c CommentView
-		if err := rows.Scan(&c.ID, &c.Content, &c.CreatedAt, &c.Username); err != nil {
+		var rc rawComment
+		if err := rows.Scan(&rc.ID, &rc.Content, &rc.CreatedAt, &rc.Username); err != nil {
 			log.Println("Error scanning comment:", err)
 			continue
 		}
+		rawComments = append(rawComments, rc)
+	}
 
-		// Load likes/dislikes for each comment
+	rows.Close() // IMPORTANT: close before nested DB queries
+
+	// ---------------------------------------------------------
+	// 6. Build final CommentView list with likes
+	// ---------------------------------------------------------
+	var comments []CommentView
+
+	for _, rc := range rawComments {
+		c := CommentView{
+			ID:        rc.ID,
+			Content:   rc.Content,
+			CreatedAt: rc.CreatedAt,
+			Username:  rc.Username,
+		}
+
 		cl, cd := likes.CountCommentLikes(c.ID)
 		c.Likes = cl
 		c.Dislikes = cd
@@ -108,6 +150,9 @@ func ViewPostHandler(w http.ResponseWriter, r *http.Request) {
 		comments = append(comments, c)
 	}
 
+	// ---------------------------------------------------------
+	// 7. Render template
+	// ---------------------------------------------------------
 	data := PostPageData{
 		User:     user,
 		Post:     post,
@@ -116,5 +161,6 @@ func ViewPostHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err := postTmpl.ExecuteTemplate(w, "post.html", data); err != nil {
 		http.Error(w, "Template error", http.StatusInternalServerError)
+		return
 	}
 }

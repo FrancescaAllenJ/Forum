@@ -6,12 +6,6 @@ import (
 	"forum/database"
 )
 
-// Category represents a category that can be linked to a post.
-type Category struct {
-	ID   int
-	Name string
-}
-
 // GetCategoriesForPost returns all categories for a given post ID.
 func GetCategoriesForPost(postID int) ([]Category, error) {
 	rows, err := database.DB.Query(`
