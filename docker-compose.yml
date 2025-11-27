@@ -1,0 +1,15 @@
+version: "3.9"
+
+services:
+  forum:
+    build: .
+    ports:
+      - "8080:8080"
+
+    # Keep SQLite persistent + keep templates/static editable
+    volumes:
+      - ./forum.db:/app/forum.db
+      - ./templates:/app/templates
+      - ./static:/app/static
+
+    restart: unless-stopped

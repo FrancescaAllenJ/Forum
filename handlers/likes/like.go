@@ -10,7 +10,6 @@ import (
 
 // LikeHandler handles likes & dislikes for posts and comments.
 func LikeHandler(w http.ResponseWriter, r *http.Request) {
-	// Parse POST form
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Invalid form data", http.StatusBadRequest)
 		return
@@ -43,7 +42,9 @@ func LikeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Handles likes/dislikes on posts
+// -------------------------------------------------------
+// POST LIKE
+// -------------------------------------------------------
 func handlePostLike(w http.ResponseWriter, r *http.Request, userID int, targetID string, val int) {
 	postID, err := strconv.Atoi(targetID)
 	if err != nil {
@@ -74,10 +75,13 @@ func handlePostLike(w http.ResponseWriter, r *http.Request, userID int, targetID
         `, userID, postID, val)
 	}
 
-	http.Redirect(w, r, r.Header.Get("Referer"), http.StatusSeeOther)
+	// Always redirect safely to post page (fixes Back button)
+	http.Redirect(w, r, "/post?id="+strconv.Itoa(postID), http.StatusSeeOther)
 }
 
-// Handles likes/dislikes on comments
+// -------------------------------------------------------
+// COMMENT LIKE
+// -------------------------------------------------------
 func handleCommentLike(w http.ResponseWriter, r *http.Request, userID int, targetID string, val int) {
 	commentID, err := strconv.Atoi(targetID)
 	if err != nil {
@@ -108,5 +112,15 @@ func handleCommentLike(w http.ResponseWriter, r *http.Request, userID int, targe
         `, userID, commentID, val)
 	}
 
-	http.Redirect(w, r, r.Header.Get("Referer"), http.StatusSeeOther)
+	// We need the post ID → extract from referer:
+	ref := r.Header.Get("Referer")
+
+	// Fallback → redirect home if empty
+	if ref == "" {
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
+
+	// Safe redirect back to the post page URL
+	http.Redirect(w, r, ref, http.StatusSeeOther)
 }

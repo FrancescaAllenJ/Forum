@@ -1,0 +1,12 @@
+<h1>My Posts</h1>
+
+{{if .Posts}}
+    {{range .Posts}}
+        <div>
+            <h3><a href="/post?id={{.ID}}">{{.Title}}</a></h3>
+            <p>{{.Content}}</p>
+        </div>
+    {{end}}
+{{else}}
+    <p>You haven't created any posts yet.</p>
+{{end}}
