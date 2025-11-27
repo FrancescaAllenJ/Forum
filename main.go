@@ -14,9 +14,6 @@ import (
 	"forum/models"
 )
 
-// --------------------------------------
-// GLOBAL TEMPLATE HOLDER
-// --------------------------------------
 var templates *template.Template
 
 // Data passed to index.html
@@ -26,30 +23,45 @@ type HomeData struct {
 }
 
 func main() {
-	// 1. Initialize the database.
+	// --------------------------
+	// INITIALIZATION
+	// --------------------------
 	database.InitDB()
-
-	// 2. Load HTML templates.
 	loadTemplates()
 
-	// 3. Router setup.
 	mux := http.NewServeMux()
 
 	// --------------------------
-	// ROUTES
+	// MAIN PAGES
 	// --------------------------
 	mux.HandleFunc("/", homeHandler)
 	mux.HandleFunc("/register", auth.RegisterHandler)
 	mux.HandleFunc("/login", auth.LoginHandler)
 	mux.HandleFunc("/logout", auth.LogoutHandler)
 
+	// --------------------------
+	// POSTS
+	// --------------------------
 	mux.HandleFunc("/create-post", posts.CreatePostHandler)
 	mux.HandleFunc("/post", posts.ViewPostHandler)
 
+	// NEW — filter routes
+	mux.HandleFunc("/my-posts", posts.MyPostsHandler)
+	mux.HandleFunc("/liked-posts", posts.LikedPostsHandler)
+
+	// --------------------------
+	// COMMENTS
+	// --------------------------
 	mux.HandleFunc("/create-comment", comments.CreateCommentHandler)
 
+	// --------------------------
+	// CATEGORIES
+	// --------------------------
 	mux.HandleFunc("/category", categories.ViewCategoryHandler)
 
+	// --------------------------
+	// LIKES
+	// --------------------------
 	mux.HandleFunc("/like", likes.LikeHandler)
 
 	// --------------------------
@@ -59,8 +71,13 @@ func main() {
 	mux.Handle("/static/", http.StripPrefix("/static/", static))
 
 	// --------------------------
-	// START SERVER
+	// CUSTOM 404 HANDLER
 	// --------------------------
+	mux.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(404)
+		templates.ExecuteTemplate(w, "error_404.html", nil)
+	})
+
 	log.Println("Server running at http://localhost:8080")
 	if err := http.ListenAndServe(":8080", mux); err != nil {
 		log.Fatalf("Server failed: %v", err)
@@ -79,13 +96,12 @@ func loadTemplates() {
 }
 
 // --------------------------------------
-// HOMEPAGE HANDLER (fixed version)
+// HOMEPAGE HANDLER (fixed + stable)
 // --------------------------------------
 func homeHandler(w http.ResponseWriter, r *http.Request) {
 
 	log.Println("Home handler started")
 
-	// Logged-in user (or nil)
 	user, _ := auth.GetUserFromRequest(r)
 
 	// STEP 1 — Query posts (raw)
@@ -106,9 +122,7 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error loading posts", http.StatusInternalServerError)
 		return
 	}
-	log.Println("Post query OK")
 
-	// Buffer raw posts before running nested queries
 	type rawPost struct {
 		ID        int
 		UserID    int
@@ -129,13 +143,12 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 		rawPosts = append(rawPosts, rp)
 	}
 
-	rows.Close() // IMPORTANT — close cursor to prevent SQLite deadlock
+	rows.Close() // essential for SQLite
 
-	// STEP 2 — Enrich posts with categories + likes
+	// STEP 2 — Enrich with categories + likes
 	var postsList []models.Post
 
 	for _, rp := range rawPosts {
-
 		p := models.Post{
 			ID:        rp.ID,
 			UserID:    rp.UserID,
@@ -145,25 +158,21 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 			CreatedAt: rp.CreatedAt,
 		}
 
-		// Load categories
+		// categories
 		cats, err := posts.GetCategoriesForPost(p.ID)
-		if err != nil {
-			log.Println("Category load error:", err)
-		} else {
+		if err == nil {
 			p.Categories = cats
 		}
 
-		// Load like / dislike counts
-		likesCount, dislikesCount := likes.CountPostLikes(p.ID)
-		p.Likes = likesCount
-		p.Dislikes = dislikesCount
+		// likes/dislikes
+		lc, dc := likes.CountPostLikes(p.ID)
+		p.Likes = lc
+		p.Dislikes = dc
 
 		postsList = append(postsList, p)
 	}
 
-	// STEP 3 — Render template
-	log.Println("Rendering homepage template…")
-
+	// STEP 3 — Render homepage
 	data := HomeData{
 		User:  user,
 		Posts: postsList,
@@ -172,8 +181,5 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 	if err := templates.ExecuteTemplate(w, "index.html", data); err != nil {
 		log.Println("Template error:", err)
 		http.Error(w, "Template error", http.StatusInternalServerError)
-		return
 	}
-
-	log.Println("Homepage render complete")
 }
