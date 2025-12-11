@@ -1,7 +1,24 @@
+# Git
 .git
 .gitignore
+
+# Go build outputs
 forum
+forum.exe
+
+# SQLite database (handled separately by Docker volume)
 forum.db
+*.db
+*.sqlite
+*.sqlite3
+
+# Cache & temp files
 *.log
 *.DS_Store
-README.md
+
+# Editor/project files
+.vscode
+.idea
+
+# Node junk (if any)
+node_modules/

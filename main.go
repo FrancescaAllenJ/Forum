@@ -16,64 +16,73 @@ import (
 
 var templates *template.Template
 
-// Data passed to index.html
+// ------------------------------------------------------------
+// DATA STRUCTS
+// ------------------------------------------------------------
 type HomeData struct {
-	User  *auth.SessionUser
-	Posts []models.Post
+	User       *auth.SessionUser
+	Posts      []models.Post
+	Categories []models.Category
 }
 
+// ------------------------------------------------------------
+// STATUS RECORDER (detects when a route writes nothing → 404)
+// ------------------------------------------------------------
+type statusRecorder struct {
+	http.ResponseWriter
+	written bool
+}
+
+func (sr *statusRecorder) WriteHeader(code int) {
+	sr.written = true
+	sr.ResponseWriter.WriteHeader(code)
+}
+
+func (sr *statusRecorder) Write(b []byte) (int, error) {
+	sr.written = true
+	return sr.ResponseWriter.Write(b)
+}
+
+// ------------------------------------------------------------
+// MAIN
+// ------------------------------------------------------------
 func main() {
-	// Init DB + templates
 	database.InitDB()
 	loadTemplates()
 
 	mux := http.NewServeMux()
 
-	// --------------------------
-	// MAIN PAGES
-	// --------------------------
+	// AUTH
 	mux.HandleFunc("/", homeHandler)
 	mux.HandleFunc("/register", auth.RegisterHandler)
 	mux.HandleFunc("/login", auth.LoginHandler)
 	mux.HandleFunc("/logout", auth.LogoutHandler)
 
-	// --------------------------
 	// POSTS
-	// --------------------------
 	mux.HandleFunc("/create-post", posts.CreatePostHandler)
 	mux.HandleFunc("/post", posts.ViewPostHandler)
 	mux.HandleFunc("/my-posts", posts.MyPostsHandler)
 	mux.HandleFunc("/liked-posts", posts.LikedPostsHandler)
 
-	// --------------------------
 	// COMMENTS
-	// --------------------------
 	mux.HandleFunc("/create-comment", comments.CreateCommentHandler)
 
-	// --------------------------
 	// CATEGORIES
-	// --------------------------
 	mux.HandleFunc("/category", categories.ViewCategoryHandler)
 
-	// --------------------------
 	// LIKES
-	// --------------------------
 	mux.HandleFunc("/like", likes.LikeHandler)
 
-	// --------------------------
 	// STATIC FILES
-	// --------------------------
 	static := http.FileServer(http.Dir("static"))
 	mux.Handle("/static/", http.StripPrefix("/static/", static))
 
-	// --------------------------
-	// GLOBAL WRAPPER
-	// - custom 404
-	// - panic → 500
-	// --------------------------
-	wrappedMux := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// --------------------------------------------------------
+	// WRAPPER (Panic → 500, No output → 404)
+	// --------------------------------------------------------
+	wrapped := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-		// Recover from panics → 500
+		// PANIC PROTECTION (500)
 		defer func() {
 			if rec := recover(); rec != nil {
 				log.Println("Recovered panic:", rec)
@@ -81,27 +90,27 @@ func main() {
 			}
 		}()
 
-		// Check if route exists
-		_, pattern := mux.Handler(r)
-		if pattern == "" {
+		// Record output to detect unhandled routes
+		rec := &statusRecorder{ResponseWriter: w}
+
+		mux.ServeHTTP(rec, r)
+
+		// No handler wrote → Unknown route → 404
+		if !rec.written {
 			w.WriteHeader(http.StatusNotFound)
 			templates.ExecuteTemplate(w, "error_404.html", nil)
-			return
 		}
-
-		// Serve normally
-		mux.ServeHTTP(w, r)
 	})
 
 	log.Println("Server running at http://localhost:8080")
-	if err := http.ListenAndServe(":8080", wrappedMux); err != nil {
+	if err := http.ListenAndServe(":8080", wrapped); err != nil {
 		log.Fatalf("Server failed: %v", err)
 	}
 }
 
-// ----------------------------------------------------
-// LOAD ALL TEMPLATES
-// ----------------------------------------------------
+// ------------------------------------------------------------
+// TEMPLATE LOADER
+// ------------------------------------------------------------
 func loadTemplates() {
 	var err error
 	templates, err = template.ParseGlob("templates/*.html")
@@ -110,21 +119,29 @@ func loadTemplates() {
 	}
 }
 
-// ----------------------------------------------------
-// RENDER 500 PAGE
-// ----------------------------------------------------
+// ------------------------------------------------------------
+// ERROR 500 PAGE
+// ------------------------------------------------------------
 func render500(w http.ResponseWriter) {
 	w.WriteHeader(http.StatusInternalServerError)
 	templates.ExecuteTemplate(w, "error_500.html", nil)
 }
 
-// ----------------------------------------------------
-// HOMEPAGE HANDLER (IMPORT-CYCLE SAFE)
-// ----------------------------------------------------
+// ------------------------------------------------------------
+// HOME HANDLER
+// ------------------------------------------------------------
 func homeHandler(w http.ResponseWriter, r *http.Request) {
+
+	// MUST match exactly `/`
+	if r.URL.Path != "/" {
+		return
+	}
+
 	user, _ := auth.GetUserFromRequest(r)
 
-	// STEP 1 — Load posts (raw)
+	// --------------------------------------------------------
+	// LOAD POSTS
+	// --------------------------------------------------------
 	rows, err := database.DB.Query(`
 		SELECT posts.id,
 		       posts.user_id,
@@ -150,23 +167,23 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 		CreatedAt string
 	}
 
-	var rawPosts []rawPost
+	var raw []rawPost
 
 	for rows.Next() {
 		var rp rawPost
 		if err := rows.Scan(
-			&rp.ID, &rp.UserID, &rp.Username, &rp.Title, &rp.Content, &rp.CreatedAt,
-		); err != nil {
-			continue
+			&rp.ID, &rp.UserID, &rp.Username,
+			&rp.Title, &rp.Content, &rp.CreatedAt,
+		); err == nil {
+			raw = append(raw, rp)
 		}
-		rawPosts = append(rawPosts, rp)
 	}
 	rows.Close()
 
-	// STEP 2 — Convert raw posts → models.Post
+	// Convert raw → full post model
 	var postsList []models.Post
 
-	for _, rp := range rawPosts {
+	for _, rp := range raw {
 		p := models.Post{
 			ID:        rp.ID,
 			UserID:    rp.UserID,
@@ -176,31 +193,46 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 			CreatedAt: rp.CreatedAt,
 		}
 
-		// Convert categories (handler → model)
-		handlerCats, err := posts.GetCategoriesForPost(p.ID)
-		if err == nil {
-			var converted []models.Category
-			for _, c := range handlerCats {
-				converted = append(converted, models.Category{
-					ID:   c.ID,
-					Name: c.Name,
-				})
-			}
-			p.Categories = converted
+		// Categories
+		cats, _ := posts.GetCategoriesForPost(p.ID)
+		for _, c := range cats {
+			p.Categories = append(p.Categories, models.Category{
+				ID:   c.ID,
+				Name: c.Name,
+			})
 		}
 
-		// Load like/dislike counts
-		lc, dc := likes.CountPostLikes(p.ID)
-		p.Likes = lc
-		p.Dislikes = dc
+		// Likes / Dislikes
+		p.Likes, p.Dislikes = likes.CountPostLikes(p.ID)
 
 		postsList = append(postsList, p)
 	}
 
-	// STEP 3 — Render homepage
+	// --------------------------------------------------------
+	// LOAD CATEGORY LIST (for filters)
+	// --------------------------------------------------------
+	catRows, err := database.DB.Query(`
+		SELECT id, name FROM categories ORDER BY name ASC
+	`)
+	if err != nil {
+		render500(w)
+		return
+	}
+	defer catRows.Close()
+
+	var allCats []models.Category
+	for catRows.Next() {
+		var c models.Category
+		if err := catRows.Scan(&c.ID, &c.Name); err == nil {
+			allCats = append(allCats, c)
+		}
+	}
+
+	// Data → Template
 	data := HomeData{
-		User:  user,
-		Posts: postsList,
+		User:       user,
+		Posts:      postsList,
+		Categories: allCats,
 	}
 
 	if err := templates.ExecuteTemplate(w, "index.html", data); err != nil {

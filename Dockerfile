@@ -1,15 +1,15 @@
 # ----------------------------------------------------
-# 1. Use official Go image
+# 1. Use official Go image (Go 1.24+ required)
 # ----------------------------------------------------
-FROM golang:1.22
+FROM golang:1.24
 
 # ----------------------------------------------------
-# 2. Set working directory inside container
+# 2. Create working directory
 # ----------------------------------------------------
 WORKDIR /app
 
 # ----------------------------------------------------
-# 3. Copy go.mod and go.sum first (caching)
+# 3. Copy Go mod files & download dependencies
 # ----------------------------------------------------
 COPY go.mod go.sum ./
 RUN go mod download
@@ -20,16 +20,16 @@ RUN go mod download
 COPY . .
 
 # ----------------------------------------------------
-# 5. Build the Go binary
+# 5. Build binary
 # ----------------------------------------------------
 RUN go build -o forum .
 
 # ----------------------------------------------------
-# 6. Expose port 8080
+# 6. Expose app port
 # ----------------------------------------------------
 EXPOSE 8080
 
 # ----------------------------------------------------
-# 7. Start the app
+# 7. Start server
 # ----------------------------------------------------
 CMD ["./forum"]

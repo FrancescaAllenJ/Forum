@@ -16,6 +16,37 @@
 
     <hr>
 
+    <!-- FILTER BAR -->
+    <div style="margin-bottom:20px;">
+
+        <h2>Filters</h2>
+
+        <!-- CATEGORIES FILTER -->
+        <div>
+            <strong>Categories:</strong>
+            {{range .Categories}}
+                <a href="/category?id={{.ID}}"
+                   style="margin-right:10px; background:#f0f0f0; padding:4px; border-radius:4px;">
+                    {{.Name}}
+                </a>
+            {{end}}
+        </div>
+
+        <!-- USER FILTERS -->
+        {{if .User}}
+            <div style="margin-top:10px;">
+                <a href="/my-posts">My Posts</a>
+            </div>
+
+            <div style="margin-top:5px;">
+                <a href="/liked-posts">Liked Posts</a>
+            </div>
+        {{end}}
+
+    </div>
+
+    <hr>
+
     <h2>Recent Posts</h2>
 
     {{if .Posts}}
