@@ -18,9 +18,12 @@ var loginTmpl = template.Must(template.ParseGlob("templates/*.html"))
 func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
+		// Show the login form
 		loginTmpl.ExecuteTemplate(w, "login.html", nil)
+
 	case "POST":
 		handleLoginPost(w, r)
+
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
@@ -30,12 +33,13 @@ func handleLoginPost(w http.ResponseWriter, r *http.Request) {
 	email := r.FormValue("email")
 	password := r.FormValue("password")
 
+	// Basic validation
 	if email == "" || password == "" {
 		loginTmpl.ExecuteTemplate(w, "login.html", "All fields are required.")
 		return
 	}
 
-	// Check if user exists
+	// Retrieve user by email
 	var (
 		userID   int
 		username string
@@ -47,6 +51,7 @@ func handleLoginPost(w http.ResponseWriter, r *http.Request) {
 	).Scan(&userID, &username, &hash)
 
 	if err == sql.ErrNoRows {
+		// Email not found
 		loginTmpl.ExecuteTemplate(w, "login.html", "Invalid email or password.")
 		return
 	}
@@ -57,18 +62,25 @@ func handleLoginPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Compare bcrypt-hashed password
+	// Compare hashed password with user input
 	err = bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
 	if err != nil {
 		loginTmpl.ExecuteTemplate(w, "login.html", "Invalid email or password.")
 		return
 	}
 
-	// Create session ID
+	// ⭐ NEW: Only one active session per user
+	_, err = database.DB.Exec("DELETE FROM sessions WHERE user_id = ?", userID)
+	if err != nil {
+		log.Println("Error clearing old sessions:", err)
+		http.Error(w, "Server error", http.StatusInternalServerError)
+		return
+	}
+
+	// Create new session ID
 	sessionID := uuid.New().String()
 	expires := time.Now().Add(24 * time.Hour)
 
-	// Insert into sessions table
 	_, err = database.DB.Exec(
 		"INSERT INTO sessions (id, user_id, expires_at) VALUES (?, ?, ?)",
 		sessionID, userID, expires,
@@ -80,17 +92,18 @@ func handleLoginPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Set cookie
+	// Set session cookie
 	cookie := http.Cookie{
 		Name:     "session_id",
 		Value:    sessionID,
 		Expires:  expires,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   false, // change to true for HTTPS
+		Secure:   false, // Change to true if HTTPS enabled
 	}
+
 	http.SetCookie(w, &cookie)
 
-	// Redirect to home
+	// Redirect to homepage
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
